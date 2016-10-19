@@ -1,0 +1,133 @@
+---
+title: "Untitled"
+author: "Andy Cox"
+date: "18/10/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list=ls())
+# We will use the command mvrnorm to draw a matrix of variables
+
+#Useful functions
+mycut <- cmpfun(function(x, p) {
+  cut(x = x, breaks = quantile(x, probs = p), labels = FALSE, include.lowest = TRUE)
+})
+# Let's keep it simple
+nvars=9
+nsamp=1000
+#Variables
+prop_male<-0.6
+varnames<-c("LoS","age","RU","readmission","HbA1c","BMI","gender","race","SmokingHx")
+mu <- rep(0,nvars)
+R <- diag(nvars)
+colnames(R)<-varnames
+rownames(R)<-varnames
+
+R["LoS","RU"]<-2.0
+R["LoS","age"]<--2.0
+R["LoS","readmission"]<-0
+R["LoS","HbA1c"]<-0
+R["LoS","BMI"]<-0
+R["LoS","gender"]<-0
+R["LoS","race"]<-0
+R["LoS","SmokingHx"]<-0
+R["age","RU"]<-0
+R["age","readmission"]<-0
+R["age","HbA1c"]<-0
+R["age","BMI"]<-0
+R["age","gender"]<-0
+R["age","race"]<-0
+R["age","SmokingHx"]<-0
+R["RU","readmission"]<-0
+R["RU","HbA1c"]<-0
+R["RU","BMI"]<-0
+R["RU","gender"]<-0
+R["RU","race"]<-0
+R["RU","SmokingHx"]<-0
+R["readmission","HbA1c"]<-0
+R["readmission","BMI"]<-0
+R["readmission","gender"]<-0
+R["readmission","race"]<-0
+R["readmission","SmokingHx"]<-0
+
+R["HbA1c","BMI"]<-0
+R["HbA1c","gender"]<-0
+R["HbA1c","race"]<-0
+R["HbA1c","SmokingHx"]<-0
+
+R["BMI","gender"]<-0
+R["BMI","race"]<-0
+R["BMI","SmokingHx"]<-0
+
+R["gender","race"]<-0
+R["gender","SmokingHx"]<-0
+R["race","SmokingHx"]<-0
+
+R[lower.tri(R)] <- t(R)[lower.tri(t(R))]
+
+
+(R <- make.positive.definite(R))
+#(R <- cov2cor(make.positive.definite(R)))
+rawvars <- mvrnorm(n=nsamp, mu=mu, Sigma=R,tol=1e-6)
+
+#cov(rawvars); cor(rawvars)
+# We can see our normal sample produces results very similar to our 
+#specified covariance levels.
+
+# No lets transform some variables
+pvars <- pnorm(rawvars)
+
+# Through this process we already have 
+#cov(pvars); cor(pvars)
+# We can see that while the covariances have dropped significantly, 
+# the simply correlations are largely the same.
+#Continuous variables
+d1<-pvars
+d1[,1]<-ceiling(qweibull(pvars[,1],shape=1,scale=5))#LoS
+#Alternative for use on raw mvnorm output Age <- ((Age/1.6) + mu$cont["Age"]) * 10
+d1[,2]<-ceiling(qnorm(pvars[,2],mean=62,sd=10))#Age
+d1[,3]<-qpois(pvars[,3],lambda=100)#Resource use
+d1[,4]<-ceiling(qweibull(pvars[,4],shape=0.5,scale=20))#Readmission
+d1[,5]<-qpois(pvars[,3],lambda=5)# HbA1c (glycated haemoglobin)
+d1[,6]<-round(qnorm(pvars[,6],mean=26,sd=3),0)#BMI
+#Categorical variables
+d1[,7] <-mycut(d1[,7], c(0, 1-prop_male, 1)) - 1#Gender
+d1[,8]<-mycut(d1[,8],c(0,0.1,0.4,0.65,0.98,1))#Race
+d1[,9]<-mycut(d1[,9],c(0,0.1,0.3,1))#Smoking Hx: categorical with three levels, current smoker, former smoker, never smoked
+PID<-1:nsamp
+d1<-cbind(PID,d1)
+
+
+
+d1<-round(as.data.frame(d1),3)
+
+cor(d1)
+par(mfrow = c(2, 2))
+plot(d1[,"LoS"],d1[,"age"])
+plot(d1[,"LoS"],d1[,"RU"])
+plot(d1[,"LoS"],d1[,"readmission"])
+plot(d1[,"RU"],d1[,"age"])
+
+cor(d1[,"LoS"],d1[,"age"])
+cor(d1[,"LoS"],d1[,"RU"])
+cor(d1[,"LoS"],d1[,"readmission"])
+cor(d1[,"RU"],d1[,"age"])
+
+mod1<-lm(LoS~age,data=d1)
+summary(mod1)
+#plot(mod1)
+mod2<-lm(LoS~RU,data=d1)
+summary(mod2)
+
+mod3<-lm(age~RU,data=d1)
+summary(mod3)
+
+mod4<-lm(readmission~LoS,data=d1)
+summary(mod4)
+
+```
